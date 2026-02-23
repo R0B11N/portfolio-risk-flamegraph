@@ -1,5 +1,7 @@
 # Portfolio Risk Flamegraph
 
+![Risk Flamegraph Screenshot](docs/screenshot.png)
+
 **Fama-French 3-Factor Variance Decomposition → Interactive D3.js Flamegraph**
 
 I couldn't understand where my actual risk was coming from in my own brokerage account, so I built a factor model that decomposes portfolio variance into market / size / value / idiosyncratic components and renders it as an interactive flamegraph. Turns out 80% of what I thought was a diversified portfolio was just naked market beta.
@@ -62,7 +64,7 @@ The extension connects to your local backend (`localhost:8000` by default — co
 
 ## Data Sources
 
-- **Stock prices**: [Stooq](https://stooq.com/) via `pandas_datareader` (primary), yfinance (fallback)
+- **Stock prices**: yfinance (primary), [Stooq](https://stooq.com/) via `pandas_datareader` (fallback)
 - **Factor data**: [Kenneth French Data Library](https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library.html) — daily Fama-French 3-factor CSV
 - **FX rates**: yfinance (`CADUSD=X`) for TSX-listed stocks
 - **Broker**: Questrade OAuth (optional) — one-time read-only fetch, token discarded immediately
