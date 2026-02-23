@@ -32,7 +32,9 @@ def download_ff_factors() -> pd.DataFrame:
         age = datetime.now() - datetime.fromtimestamp(FF_CACHE_FILE.stat().st_mtime)
         if age.days < 7:
             log.info("Using cached FF data (%d days old)", age.days)
-            df = pd.read_csv(FF_CACHE_FILE, parse_dates=["Date"], index_col="Date")
+            df = pd.read_csv(FF_CACHE_FILE, index_col=0)
+            df.index = pd.to_datetime(df.index)
+            df.index.name = "Date"
             return df
 
     log.info("Downloading FF factor data from %s", FF_URL)
@@ -114,58 +116,50 @@ def _fetch_via_yfinance(ticker: str) -> Optional[pd.Series]:
 
 def fetch_prices(tickers: List[str], lookback_months: int = 18) -> pd.DataFrame:
     """Fetch close prices for a list of tickers.
-    TSX tickers (.TO, .V) route directly to yfinance; others use Stooq first."""
+    Uses yfinance as the primary source for all tickers.
+    Falls back to Stooq for non-TSX tickers if yfinance fails."""
 
     end = datetime.now()
     start = end - timedelta(days=lookback_months * 30)
     log.info("Fetching prices for %s from %s to %s", tickers, start.date(), end.date())
 
     all_series = {}
-    fallback_needed = []
+    stooq_fallback = []
 
-    tsx_tickers = [t for t in tickers if _is_tsx_ticker(t)]
-    non_tsx_tickers = [t for t in tickers if not _is_tsx_ticker(t)]
-
-    if tsx_tickers:
-        log.info("TSX tickers (via yfinance): %s", tsx_tickers)
-        for i, ticker in enumerate(tsx_tickers):
-            if i > 0:
-                time.sleep(1.0)
-            series = _fetch_via_yfinance(ticker)
-            if series is not None:
-                all_series[ticker] = series
-                log.info("✓ %s: %d days (yfinance/TSX)", ticker, len(series))
+    # Try yfinance first for all tickers (avoids pandas_datareader
+    # parse_dates incompatibility with pandas 2.x)
+    for i, ticker in enumerate(tickers):
+        if i > 0:
+            time.sleep(1.0)
+        series = _fetch_via_yfinance(ticker)
+        if series is not None:
+            all_series[ticker] = series
+            log.info("✓ %s: %d days (yfinance)", ticker, len(series))
+        else:
+            if not _is_tsx_ticker(ticker):
+                stooq_fallback.append(ticker)
             else:
                 log.warning("No data for TSX ticker %s", ticker)
 
-    for ticker in non_tsx_tickers:
-        try:
-            from pandas_datareader import data as pdr
-            df = pdr.DataReader(ticker, "stooq", start, end)
+    # Fall back to Stooq for non-TSX tickers that yfinance missed
+    if stooq_fallback:
+        log.info("Falling back to Stooq for: %s", stooq_fallback)
+        for ticker in stooq_fallback:
+            try:
+                from pandas_datareader import data as pdr
+                df = pdr.DataReader(ticker, "stooq", start, end)
 
-            if df.empty or "Close" not in df.columns:
-                log.info("Stooq: no data for %s, trying fallback", ticker)
-                fallback_needed.append(ticker)
-                continue
+                if df.empty or "Close" not in df.columns:
+                    log.warning("Stooq: no data for %s either", ticker)
+                    continue
 
-            series = df["Close"].sort_index()
-            series.name = ticker
-            all_series[ticker] = series
-            log.info("✓ %s: %d days (stooq)", ticker, len(series))
-
-        except Exception as e:
-            log.warning("Stooq failed for %s: %s", ticker, e)
-            fallback_needed.append(ticker)
-
-    if fallback_needed:
-        log.info("Falling back to yfinance for: %s", fallback_needed)
-        for i, ticker in enumerate(fallback_needed):
-            if i > 0:
-                time.sleep(1.5)
-            series = _fetch_via_yfinance(ticker)
-            if series is not None:
+                series = df["Close"].sort_index()
+                series.name = ticker
                 all_series[ticker] = series
-                log.info("✓ %s: %d days (yfinance)", ticker, len(series))
+                log.info("✓ %s: %d days (stooq)", ticker, len(series))
+
+            except Exception as e:
+                log.warning("Stooq also failed for %s: %s", ticker, e)
 
     if not all_series:
         raise ValueError(f"No price data returned for any ticker: {tickers}")
