@@ -4,7 +4,7 @@
 
 **Fama-French 3-Factor Variance Decomposition → Interactive D3.js Flamegraph**
 
-I couldn't understand where my actual risk was coming from in my own brokerage account, so I built a factor model that decomposes portfolio variance into market / size / value / idiosyncratic components and renders it as an interactive flamegraph. Turns out 80% of what I thought was a diversified portfolio was just naked market beta.
+I couldn't be bothered to spend time building a model or vibing around with where where my actual risk was coming from in my own brokerage account, so I built a factor model that decomposes portfolio variance into market / size / value / idiosyncratic components and renders it as an interactive flamegraph. Turns out 80% of what I thought was a diversified portfolio was just naked market beta.
 
 ## The Math
 
