@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Risk Flamegraph</title>
+    <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+    <style>
+        :root {
+            --bg: #0f1117;
+            --surface: #181a24;
+            --border: #242736;
+            --text: #e4e4eb;
+            --text-muted: #7a7d8e;
+            --accent: linear-gradient(135deg, #f97316, #ef4444);
+            --clr-mkt: #4a8fe7;
+            --clr-smb: #45b26b;
+            --clr-hml: #fbbf24;
+            --clr-idio: #a855f7;
+            --mono: 'JetBrains Mono', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            font-size: 12px;
+            line-height: 1.5;
+            padding: 12px;
+        }
+
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .logo {
+            width: 24px;
+            height: 24px;
+            background: var(--accent);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 10px;
+            color: #fff;
+        }
+
+        .title {
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .badge {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 1px 5px;
+            font-size: 9px;
+            font-family: var(--mono);
+            color: var(--text-muted);
+            margin-left: auto;
+        }
+
+        .settings-row {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 12px;
+            align-items: center;
+        }
+
+        .settings-row label {
+            font-size: 10px;
+            color: var(--text-muted);
+            flex-shrink: 0;
+        }
+
+        .settings-row input {
+            flex: 1;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 4px 6px;
+            color: var(--text);
+            font-family: var(--mono);
+            font-size: 10px;
+        }
+
+        .pos-list {
+            margin-bottom: 10px;
+        }
+
+        .pos-row {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 4px;
+        }
+
+        .pos-row input {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 5px 6px;
+            color: var(--text);
+            font-family: var(--mono);
+            font-size: 11px;
+        }
+
+        .pos-row input.ticker {
+            width: 60px;
+            text-transform: uppercase;
+        }
+
+        .pos-row input.value {
+            flex: 1;
+        }
+
+        .pos-row button {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 14px;
+            padding: 0 4px;
+        }
+
+        .pos-row button:hover {
+            color: #ef4444;
+        }
+
+        .btn-row {
+            display: flex;
+            gap: 6px;
+            margin-bottom: 12px;
+        }
+
+        .btn-add {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 5px 8px;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 10px;
+        }
+
+        .btn-add:hover {
+            border-color: var(--text-muted);
+        }
+
+        .btn-analyze {
+            flex: 1;
+            background: var(--accent);
+            border: none;
+            border-radius: 6px;
+            padding: 8px;
+            color: #fff;
+            font-weight: 600;
+            font-size: 11px;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .btn-analyze:hover {
+            opacity: 0.9;
+        }
+
+        .btn-analyze:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 24px 0;
+        }
+
+        .spinner {
+            width: 24px;
+            height: 24px;
+            margin: 0 auto 8px;
+            border: 2px solid var(--border);
+            border-top-color: var(--clr-mkt);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .load-msg {
+            color: var(--text-muted);
+            font-size: 10px;
+        }
+
+        .results {}
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 6px;
+            margin-bottom: 10px;
+        }
+
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px;
+            text-align: center;
+        }
+
+        .stat-card .label {
+            font-size: 9px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .stat-card .num {
+            font-family: var(--mono);
+            font-size: 18px;
+            font-weight: 700;
+            margin-top: 2px;
+        }
+
+        .stat-card[data-f="mkt"] .num {
+            color: var(--clr-mkt);
+        }
+
+        .stat-card[data-f="smb"] .num {
+            color: var(--clr-smb);
+        }
+
+        .stat-card[data-f="hml"] .num {
+            color: var(--clr-hml);
+        }
+
+        .stat-card[data-f="idio"] .num {
+            color: var(--clr-idio);
+        }
+
+        .stat-card[data-f="vol"] {
+            grid-column: span 2;
+        }
+
+        .stat-card[data-f="vol"] .num {
+            background: var(--accent);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .realized-note {
+            font-family: var(--mono);
+            font-size: 9px;
+            color: var(--text-muted);
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .bar-container {
+            display: flex;
+            height: 8px;
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 12px;
+            gap: 1px;
+        }
+
+        .bar-seg {
+            transition: flex-basis 0.8s ease;
+            flex-basis: 0;
+        }
+
+        .bar-seg.mkt {
+            background: var(--clr-mkt);
+        }
+
+        .bar-seg.smb {
+            background: var(--clr-smb);
+        }
+
+        .bar-seg.hml {
+            background: var(--clr-hml);
+        }
+
+        .bar-seg.idio {
+            background: var(--clr-idio);
+        }
+
+        .flamegraph-container {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px;
+            margin-bottom: 10px;
+            overflow-x: auto;
+        }
+
+        .fg-bar {
+            display: flex;
+            border-radius: 3px;
+            margin-bottom: 3px;
+            min-height: 28px;
+            overflow: hidden;
+            cursor: pointer;
+        }
+
+        .fg-cell {
+            display: flex;
+            align-items: center;
+            padding: 0 6px;
+            font-size: 10px;
+            font-family: var(--mono);
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: flex-basis 0.5s ease;
+            position: relative;
+        }
+
+        .fg-cell.mkt {
+            background: rgba(74, 143, 231, 0.15);
+            color: var(--clr-mkt);
+        }
+
+        .fg-cell.smb {
+            background: rgba(69, 178, 107, 0.12);
+            color: var(--clr-smb);
+        }
+
+        .fg-cell.hml {
+            background: rgba(251, 191, 36, 0.12);
+            color: var(--clr-hml);
+        }
+
+        .fg-cell.idio {
+            background: rgba(168, 85, 247, 0.12);
+            color: var(--clr-idio);
+        }
+
+        .fg-cell:hover {
+            filter: brightness(1.3);
+        }
+
+        .insight-box {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-left: 3px solid #f97316;
+            border-radius: 6px;
+            padding: 8px;
+            margin-bottom: 10px;
+            font-size: 11px;
+            line-height: 1.6;
+        }
+
+        .detail-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 10px;
+            font-family: var(--mono);
+            margin-bottom: 10px;
+        }
+
+        .detail-table th {
+            background: var(--surface);
+            color: var(--text-muted);
+            padding: 4px 6px;
+            text-align: left;
+            font-weight: 500;
+            border-bottom: 1px solid var(--border);
+            font-size: 9px;
+        }
+
+        .detail-table td {
+            padding: 4px 6px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .num-pos {
+            color: var(--clr-smb);
+        }
+
+        .num-neg {
+            color: #ef4444;
+        }
+
+        .btn-back {
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 6px 10px;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 10px;
+            width: 100%;
+        }
+
+        .btn-back:hover {
+            border-color: var(--text-muted);
+            color: var(--text);
+        }
+
+        .error {
+            background: rgba(239, 68, 68, 0.08);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            border-radius: 6px;
+            padding: 8px;
+            margin-bottom: 10px;
+            color: #ef4444;
+            font-size: 11px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="header">
+        <div class="logo">RF</div>
+        <span class="title">Risk Flamegraph</span>
+        <span class="badge">FF3</span>
+    </div>
+
+    <div class="settings-row">
+        <label>API:</label>
+        <input type="text" id="api-url" value="http://localhost:8000" spellcheck="false">
+    </div>
+
+    <!-- Input Section -->
+    <div id="input-section">
+        <div class="pos-list" id="pos-list">
+            <div class="pos-row">
+                <input type="text" class="ticker" value="AAPL" spellcheck="false">
+                <input type="number" class="value" value="15000">
+                <button class="remove" title="Remove">−</button>
+            </div>
+            <div class="pos-row">
+                <input type="text" class="ticker" value="MSFT" spellcheck="false">
+                <input type="number" class="value" value="12000">
+                <button class="remove" title="Remove">−</button>
+            </div>
+            <div class="pos-row">
+                <input type="text" class="ticker" value="GOOGL" spellcheck="false">
+                <input type="number" class="value" value="10000">
+                <button class="remove" title="Remove">−</button>
+            </div>
+        </div>
+        <div class="btn-row">
+            <button class="btn-add" id="add-btn">+ Ticker</button>
+            <button class="btn-analyze" id="analyze-btn">Analyze Risk →</button>
+        </div>
+    </div>
+
+    <!-- Loading -->
+    <div class="loading hidden" id="loading-section">
+        <div class="spinner"></div>
+        <div class="load-msg" id="load-msg">Downloading factor data…</div>
+    </div>
+
+    <!-- Error -->
+    <div class="error hidden" id="error-section"></div>
+
+    <!-- Results -->
+    <div class="results hidden" id="results-section">
+        <div class="stats">
+            <div class="stat-card" data-f="mkt">
+                <div class="label">Market Beta</div>
+                <div class="num" id="r-mkt">—</div>
+            </div>
+            <div class="stat-card" data-f="smb">
+                <div class="label">Size (SMB)</div>
+                <div class="num" id="r-smb">—</div>
+            </div>
+            <div class="stat-card" data-f="hml">
+                <div class="label">Value (HML)</div>
+                <div class="num" id="r-hml">—</div>
+            </div>
+            <div class="stat-card" data-f="idio">
+                <div class="label">Idiosyncratic</div>
+                <div class="num" id="r-idio">—</div>
+            </div>
+            <div class="stat-card" data-f="vol">
+                <div class="label">Annual Volatility</div>
+                <div class="num" id="r-vol">—</div>
+            </div>
+        </div>
+
+        <div class="realized-note hidden" id="realized-note"></div>
+
+        <div class="bar-container">
+            <div class="bar-seg mkt" id="b-mkt"></div>
+            <div class="bar-seg smb" id="b-smb"></div>
+            <div class="bar-seg hml" id="b-hml"></div>
+            <div class="bar-seg idio" id="b-idio"></div>
+        </div>
+
+        <div class="flamegraph-container" id="flamegraph"></div>
+
+        <div class="insight-box" id="insight"></div>
+
+        <table class="detail-table">
+            <thead>
+                <tr>
+                    <th>Ticker</th>
+                    <th>β MKT</th>
+                    <th>β SMB</th>
+                    <th>β HML</th>
+                    <th>R²</th>
+                    <th>Days</th>
+                </tr>
+            </thead>
+            <tbody id="detail-tbody"></tbody>
+        </table>
+
+        <button class="btn-back" id="back-btn">← New Analysis</button>
+    </div>
+
+    <script src="sidepanel.js"></script>
+</body>
+
+</html>

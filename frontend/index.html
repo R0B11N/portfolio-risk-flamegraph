@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="Decompose your portfolio risk into market, size, value, and stock-specific components using the Fama-French 3-factor model.">
+    <title>Risk Flamegraph — Portfolio Variance Decomposition</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="page">
+        <!-- Nav -->
+        <nav class="nav">
+            <div class="nav-left">
+                <div class="nav-logo">RF</div>
+                <div class="nav-title">Risk Flamegraph <span>by Robin</span></div>
+            </div>
+            <div class="nav-right">
+                <span class="nav-badge">FF3</span>
+                <span>Fama-French 3-Factor Model</span>
+            </div>
+        </nav>
+
+        <!-- Hero -->
+        <section class="hero" id="input-section">
+            <div class="hero-left">
+                <h1>Where is your<br>risk <span class="h-accent">actually</span><br>hiding?</h1>
+                <p class="hero-sub">Paste your tickers, upload a CSV from Wealthsimple, or connect Questrade — we'll
+                    decompose your portfolio variance into market, size, value, and stock-specific risk using the
+                    Fama-French 3-factor model.</p>
+            </div>
+
+            <div class="hero-right">
+                <div class="mode-switch">
+                    <button class="mode-btn active" data-tab="manual">Manual</button>
+                    <button class="mode-btn" data-tab="csv">CSV Upload</button>
+                    <button class="mode-btn" data-tab="questrade">Questrade</button>
+                </div>
+
+                <!-- Manual Entry -->
+                <div class="tab-panel active" id="panel-manual">
+                    <div class="positions-table" id="positions-list">
+                        <div class="pos-header">
+                            <span>Ticker</span>
+                            <span>Value (USD)</span>
+                            <span></span>
+                        </div>
+                        <div class="pos-row">
+                            <input type="text" class="ticker-input" value="AAPL" spellcheck="false">
+                            <input type="number" class="value-input" value="15000">
+                            <button class="pos-remove" aria-label="Remove">−</button>
+                        </div>
+                        <div class="pos-row">
+                            <input type="text" class="ticker-input" value="MSFT" spellcheck="false">
+                            <input type="number" class="value-input" value="12000">
+                            <button class="pos-remove" aria-label="Remove">−</button>
+                        </div>
+                        <div class="pos-row">
+                            <input type="text" class="ticker-input" value="GOOGL" spellcheck="false">
+                            <input type="number" class="value-input" value="10000">
+                            <button class="pos-remove" aria-label="Remove">−</button>
+                        </div>
+                        <div class="pos-row">
+                            <input type="text" class="ticker-input" value="AMZN" spellcheck="false">
+                            <input type="number" class="value-input" value="8000">
+                            <button class="pos-remove" aria-label="Remove">−</button>
+                        </div>
+                    </div>
+                    <div class="input-actions">
+                        <button class="btn-ghost" id="add-position-btn">+ Add ticker</button>
+                        <button class="btn-run" id="analyze-btn">Analyze my risk →</button>
+                    </div>
+                </div>
+
+                <!-- CSV Upload -->
+                <div class="tab-panel" id="panel-csv">
+                    <div class="drop-area" id="dropzone">
+                        <div class="drop-icon">📄</div>
+                        <span class="drop-label">Drop your CSV here or click to browse</span>
+                        <span class="drop-hint">Wealthsimple export or any file with Symbol + Market Value
+                            columns</span>
+                        <input type="file" id="csv-file-input" accept=".csv" hidden>
+                    </div>
+                    <div id="csv-preview" class="csv-preview hidden"></div>
+                    <div class="input-actions">
+                        <span></span>
+                        <button class="btn-run hidden" id="analyze-csv-btn">Analyze my risk →</button>
+                    </div>
+                </div>
+
+                <!-- Questrade -->
+                <div class="tab-panel" id="panel-questrade">
+                    <div class="qt-info">
+                        <p>Connect your Questrade account for a one-time, read-only portfolio fetch. We'll grab your
+                            tickers and dollar values, then immediately discard the access token. Nothing is stored.</p>
+                        <button class="btn-run" id="questrade-connect-btn">Connect Questrade →</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Loading -->
+        <section class="loading hidden" id="loading-section">
+            <div class="load-spinner"></div>
+            <p class="load-status" id="loading-text">Downloading Fama-French factor data…</p>
+        </section>
+
+        <!-- Results -->
+        <section class="results hidden" id="results-section">
+
+            <!-- Stat cards -->
+            <div class="stat-cards">
+                <div class="stat-card" data-factor="mkt">
+                    <div class="stat-label">Market Beta</div>
+                    <div class="stat-num" id="market-pct">—</div>
+                </div>
+                <div class="stat-card" data-factor="smb">
+                    <div class="stat-label">Size (SMB)</div>
+                    <div class="stat-num" id="smb-pct">—</div>
+                </div>
+                <div class="stat-card" data-factor="hml">
+                    <div class="stat-label">Value (HML)</div>
+                    <div class="stat-num" id="hml-pct">—</div>
+                </div>
+                <div class="stat-card" data-factor="idio">
+                    <div class="stat-label">Idiosyncratic</div>
+                    <div class="stat-num" id="idio-pct">—</div>
+                </div>
+                <div class="stat-card" data-factor="vol">
+                    <div class="stat-label">Annual Vol</div>
+                    <div class="stat-num" id="vol-value">—</div>
+                </div>
+            </div>
+
+            <!-- Proportion bar -->
+            <div class="factor-bar-container">
+                <div class="factor-bar-segment mkt" id="bar-mkt"></div>
+                <div class="factor-bar-segment smb" id="bar-smb"></div>
+                <div class="factor-bar-segment hml" id="bar-hml"></div>
+                <div class="factor-bar-segment idio" id="bar-idio"></div>
+            </div>
+
+            <!-- Flamegraph -->
+            <div class="flame-section">
+                <div class="flame-header">
+                    <div class="flame-title">Variance Attribution</div>
+                    <div class="flame-help">Click a bar to drill down · click the bottom bar to zoom out</div>
+                </div>
+                <div id="flamegraph"></div>
+            </div>
+
+            <!-- Insight -->
+            <div class="insight" id="insight-container">
+                <span class="insight-icon">💡</span>
+                <p id="insight-text"></p>
+            </div>
+
+            <!-- Definitions (collapsible) -->
+            <div class="definitions">
+                <button class="defs-toggle" id="defs-toggle">
+                    <span class="arrow">▶</span> What do these terms mean?
+                </button>
+                <div class="defs-grid" id="defs-grid">
+                    <div class="def-card">
+                        <div class="def-term clr-mkt">Market Beta (MKT-RF)</div>
+                        <div class="def-desc">How much your portfolio moves with the overall stock market. If this is
+                            70%, then 70% of your risk is just "the market going up or down" — adding bonds or gold
+                            would reduce this.</div>
+                    </div>
+                    <div class="def-card">
+                        <div class="def-term clr-smb">Size Factor (SMB)</div>
+                        <div class="def-desc">Small Minus Big — are you tilted toward small-cap stocks? High SMB
+                            exposure means you're betting that smaller companies outperform larger ones.</div>
+                    </div>
+                    <div class="def-card">
+                        <div class="def-term clr-hml">Value Factor (HML)</div>
+                        <div class="def-desc">High Minus Low — are you tilted toward value stocks? High HML means you
+                            hold cheaper, "undervalued" companies rather than expensive growth stocks.</div>
+                    </div>
+                    <div class="def-card">
+                        <div class="def-term clr-idio">Idiosyncratic Risk</div>
+                        <div class="def-desc">Stock-specific risk that factors can't explain — earnings surprises,
+                            scandals, product launches. If this is high, your portfolio is concentrated in a few
+                            individual bets.</div>
+                    </div>
+                    <div class="def-card">
+                        <div class="def-term clr-r2">R² (R-squared)</div>
+                        <div class="def-desc">How much of a stock's movement is explained by the factor model (0 to 1).
+                            Low R² means the stock marches to its own beat — the factors don't capture its behavior
+                            well.</div>
+                    </div>
+                    <div class="def-card">
+                        <div class="def-term clr-vol">Annualized Volatility</div>
+                        <div class="def-desc">The expected yearly price swing of your portfolio. 20% volatility means
+                            your portfolio could swing roughly ±20% in a typical year.</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stock detail table -->
+            <div class="detail-section" id="detail-section">
+                <div class="detail-header">Factor Loadings by Stock</div>
+                <table class="detail-table" id="detail-table">
+                    <thead>
+                        <tr>
+                            <th>Ticker</th>
+                            <th>β Market</th>
+                            <th>β Size</th>
+                            <th>β Value</th>
+                            <th>Alpha</th>
+                            <th>R²</th>
+                            <th>Days</th>
+                        </tr>
+                    </thead>
+                    <tbody id="detail-tbody"></tbody>
+                </table>
+            </div>
+
+            <button class="btn-ghost btn-back" id="back-btn">← Analyze a different portfolio</button>
+        </section>
+
+        <!-- Error -->
+        <div class="err hidden" id="error-banner">
+            <span id="error-text"></span>
+            <button class="err-x" id="error-dismiss">×</button>
+        </div>
+
+        <footer class="foot">
+            <span>Factor data: <a href="https://mba.tuck.dartmouth.edu/pages/faculty/ken.french/data_library.html"
+                    target="_blank" rel="noopener">Ken French's Data Library</a></span>
+            <span class="foot-sep">·</span>
+            <span>Prices: Stooq + yfinance</span>
+        </footer>
+    </div>
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="flamegraph.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>
